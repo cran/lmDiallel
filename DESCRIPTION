@@ -1,6 +1,6 @@
 Package: lmDiallel
-Version: 0.9.4
-Date: 2021-08-12
+Version: 0.9.5
+Date: 2022-05-04
 Title: Linear Fixed Effects Models for Diallel Crosses
 Authors@R: c(person("Andrea" , "Onofri", role = c("aut", "cre"), email="andrea.onofri@unipg.it"), 
              person("Niccolo", "Terzaroli", email="n.terzaroli@gmail.com", role = "aut"))
@@ -11,8 +11,8 @@ Description: Several service functions to be used to analyse datasets obtained f
 URL: https://www.statforbiology.com/lmDiallel/
 License: GPL (>= 2)
 NeedsCompilation: no
-Packaged: 2021-08-12 10:18:20 UTC; andrea
+Packaged: 2022-05-04 12:52:16 UTC; andrea
 Author: Andrea Onofri [aut, cre],
   Niccolo Terzaroli [aut]
 Repository: CRAN
-Date/Publication: 2021-08-13 09:20:02 UTC
+Date/Publication: 2022-05-04 13:20:02 UTC
