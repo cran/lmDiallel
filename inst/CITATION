@@ -1,7 +1,7 @@
 citHeader("To cite the package 'lmDiallel' in publications:")
 
-citEntry(entry   = "Article",
-         author = personList(as.person("A. Onofri"),
+bibentry(bibtype   = "Article",
+         author = c(as.person("A. Onofri"),
          as.person("N. Terzaroli"),
          as.person("L. Russi")),,
          title = "Linear models for diallel crosses: a review with R functions",

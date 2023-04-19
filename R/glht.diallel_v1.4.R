@@ -1,3 +1,12 @@
+# **************************************************************************************
+# This module creates the matrices for contrasts, to be used with the glht function
+# to retreive the full matrix of genetic effects. This is done by using the diallel.eff
+# function, that creates a 'diallelMod' object. A specific glht method for this object
+# has been defined, based on diffferent functions, depending on the diallel model object
+# Added compatibility with missing crosses in GRIFFING4 (to be extended to other models)
+# Date of last update: 20/03/2023
+# **************************************************************************************
+
 GE3r.eff <- function(obj){
   # Get the data
   # obj <- dMod2; coef(dMod2)
@@ -237,37 +246,63 @@ GE2.eff <- function(obj){
 }
 
 G4.eff <- function(obj){
+  # Updated on 14/4/2023
   # Get the data
     assign <- attr(model.matrix(obj), "assign")
     P1 <- obj$model[,2]
     P2 <- obj$model[,3]
     fct <- obj$fct
-    # Intercept
+
+  # Intercept
     temp <- matrix(0, 1, length(assign))
     X <- 1
     temp[,assign == 0] <- X
     row.names(temp) <- "Intercept"
+
+  # GCA effects
     i <- 0
     if(obj$Block == T) {i <- 1}
-    # GCA
     P1 <- factor(as.character(P1))
     P2 <- factor(as.character(P2))
     levs <- c(levels(P1), levels(P2))
-    levs <- levels(factor(levs))
-    levs <- factor(levs)
+    # Edited on 15/4/2023
+    levs <- factor(unique(levs), levels = unique(levs))
+    # levs <- factor(levs)
     temp1 <- matrix(0, length(levs), length(assign))
-    # temp3 <- temp1
-    contrasts(levs) <- "contr.sum"
-    X <- model.matrix(~levs)[,-1]
+
+    # Removed on 20/3/23 to allow for missing crosses
+    # contrasts(levs) <- "contr.sum"
+    # X <- model.matrix(~levs)[,-1]
+    # temp1[,assign == i + 1] <- X
+    # row.names(temp1) <- paste("g", levs, sep = "_")
+    # X
+
+    # edited on 20/3/23
+    X <- model.matrix(~levs - 1)
+    toRem <- max(which(levs %in% obj$chk_design$parNoMis))
+    X <- X[,-toRem] - X[,toRem]
     temp1[,assign == i + 1] <- X
     row.names(temp1) <- paste("g", levs, sep = "_")
-    # SCA
-    expl <- expand.diallel(as.character(levs), 3)
-    # X <- SCA.G3(expl[,1], expl[,2])
-    X <- SCA(expl[,1], expl[,2]) # Corrected on 2/7/21
+    # temp1
+
+    # SCA effects
+    # expl <- expand.diallel(as.character(levs), 3) # Edited on 20/3/23
+    expl <- expand.diallel(as.character(levs), 4)
+    misCros <- obj$chk_design$missingCrosses
+    if(!is.null(misCros)){
+      for(j in 1:nrow(misCros)){
+        expl <- expl[!(expl$Par1 == misCros[j,1] & expl$Par2 == misCros[j,2]),]
+      }
+    }
+    # expl
+    # X <- SCA.G3(expl[,1], expl[,2]) # Original
+    # X <- SCA(expl[,1], expl[,2]) # Corrected on 2/7/21
+    X <- SCAmis(expl[,1], expl[,2]) # Edited on 20/3/23
     temp2 <- matrix(0, length(X[,1]), length(assign))
     temp2[,assign == i + 2] <- X
-    row.names(temp2) <- paste("s", "_", expl[,1], ":", expl[,2], sep = "")
+    # Updated: 7/4/2023
+    row.names(temp2) <- paste("s", "_", expl[,1], "-", expl[,2], sep = "")
+
     # rimuovere le righe senza elementi non-zero
     X <- rbind(temp, temp1, temp2)
     X <- X[apply(X, 1, function(x) !all(x==0)),]
@@ -509,7 +544,8 @@ hayman1.eff <- function(obj){
     X <- rbind(temp, temp1, temp2, temp3, temp4)
     X <- X[apply(X, 1, function(x) !all(x==0)),]
     return(X)
-  }
+}
+
 MET1.eff <- function(obj){
   Y <- obj$model[,1]
   P1 <- factor(obj$model[,2])
@@ -517,11 +553,19 @@ MET1.eff <- function(obj){
   Blk <- factor(obj$model$`(Block)`)
   Env <- factor(obj$model$`(Env)`)
   fct <- obj$fct
-  temp <- data.frame(Y, P1, P2, Blk, Env)
-  mods <- plyr::dlply(temp, c("Env"),
-      function(df) lm.diallel(Y ~ P1 + P2,
+  if(length(Blk) == 0){
+    temp <- data.frame(Y, P1, P2, Env)
+    mods <- plyr::dlply(temp, c("Env"),
+      function(df) lm.diallel(Y ~ P1 + P2, data = df,
+                              fct = fct))
+  } else {
+    temp <- data.frame(Y, P1, P2, Blk, Env)
+    mods <- plyr::dlply(temp, c("Env"),
+      function(df) lm.diallel(Y ~ P1 + P2, data = df,
                               Block = Blk,
                               fct = fct))
+  }
+
   k_env <- function(ll){
     res <- diallel.eff(ll)
     res <- res$linfct
@@ -551,11 +595,18 @@ MET2.eff <- function(obj){
   Blk <- factor(obj$model$`(Block)`)
   Env <- factor(obj$model$`(Env)`)
   fct <- obj$fct
-  temp <- data.frame(Y, P1, P2, Blk, Env)
-  mods <- plyr::dlply(temp, c("Env"),
-      function(df) lm.diallel(Y ~ P1 + P2,
+  if(length(Blk) == 0){
+    temp <- data.frame(Y, P1, P2, Env)
+    mods <- plyr::dlply(temp, c("Env"),
+      function(df) lm.diallel(Y ~ P1 + P2, data = df,
+                              fct = fct))
+  } else {
+    temp <- data.frame(Y, P1, P2, Blk, Env)
+    mods <- plyr::dlply(temp, c("Env"),
+      function(df) lm.diallel(Y ~ P1 + P2, data = df,
                               Block = Blk,
                               fct = fct))
+  }
   k_env <- function(ll){
     res <- diallel.eff(ll)
     res <- res$linfct
@@ -570,28 +621,47 @@ MET2.eff <- function(obj){
   for(i in 1:length(levels(temp$Env))) rownames(mats[[i]]) <- paste(rownames(mats[[i]]), names(mats)[i], sep = ":")
   colNames <- unlist(lapply(mats, colnames))
   rowNames <- unlist(lapply(mats, rownames))
+
+  # I have to verify whether the incidence matrices for the different
+  # environments are the same. This may not be true, when we have
+  # missing crosses in some environments, but not all. In this case,
+  # an error needs to be returned.
+  chk <- sapply(mats, function(el) length(el[,1]))
+  if(length(unique(chk)) != 1) stop("the incidence matrices for the different environments do not match")
+
   k <- mats[[1]]
   for(i in 2:length(mats)){
     k <- cbind(k, mats[[i]])
   }
-  k
+  # k
   mats2 <- matrix(0, length(k[,1]), length(mats))
   k <- cbind(mats2, k)/length(mats)
   return(k)
 }
 
 MET3.eff <- function(obj){
+  # Type = reduced. The model is refit by considering the environment
+  # or the environment:block as a blocking factor, so that I have average parameters
+  # and the displacement due to blocks. It assumes that the interaction is not
+  # significant
   Y <- obj$model[,1]
   P1 <- factor(obj$model[,2])
   P2 <- factor(obj$model[,3])
   Blk <- factor(obj$model$`(Block)`)
   Env <- factor(obj$model$`(Env)`)
-  BlockEnv <- factor(paste(Blk, Env, sep = ":"))
   fct <- obj$fct
-  temp <- data.frame(Y, P1, P2, BlockEnv)
-  mod <- lm.diallel(Y ~ P1 + P2, data = temp,
+  if(length(Blk) == 0){
+    temp <- data.frame(Y, P1, P2, Env)
+    mod <- lm.diallel(Y ~ P1 + P2, data = temp,
+                       Block = Env,
+                       fct = fct)
+  } else {
+    BlockEnv <- factor(paste(Blk, Env, sep = ":"))
+    temp <- data.frame(Y, P1, P2, BlockEnv)
+    mod <- lm.diallel(Y ~ P1 + P2, data = temp,
                        Block = BlockEnv,
                        fct = fct)
+  }
   k <- diallel.eff(mod)
   return(k)
 }
@@ -631,13 +701,11 @@ diallel.eff <- function(obj, MSE = NULL, dfr = NULL, type = "all") {
       k <- MET2.eff(obj)
     } else if(type == "reduced"){
       k <- MET3.eff(obj)
-    }else {
+    } else {
       print("Argument type may be either 'all' or 'means' or 'reduced'")
       stop()
     }
   }
-
-
 
     linfct.list <- list(linfct = k, MSE = MSE, dfr = dfr, obj = obj)
     class(linfct.list) <- "diallelMod"
@@ -690,12 +758,15 @@ glht.diallelMod <- function(model, linfct, ...) {
     args <- list(coef = coefMod, vcov = vcovMod, df = 26)
     class(args) <- "parm"
     ret <- multcomp::glht(args, k)
+    # if(linfct$method == "emmeans"){
+    #   tmp <- summary(ret, test = adjusted(type = "none"))
+    #   ret <- emm(tmp)
+    # }
     return(ret)
-
 }
 
 expand.diallel <- function(pars, mating = 1){
-  pars <- sort(pars)
+  # pars <- sort(pars) Removed on 15/4/2023. To be checked
   # print(pars)
   if(mating == 1){
     Par1 <- rep(pars, each = length(pars))
